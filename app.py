@@ -1,18 +1,12 @@
 from flask import Flask, render_template_string, request, jsonify
 import os
-import google.generativeai as genai
+import urllib.request
+import json
 
 app = Flask(__name__)
 
-# 🤖 Initialize Gemini API Client safely
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    ai_model = None
 
-# 🤖 AI & Risk Management System State
 bot_status = {
     "state": "OPEN (Trading)",
     "active_markets": ["XAUUSD"],
@@ -32,13 +26,14 @@ bot_status = {
     "losing_trades": "10",
     "balance": "220.29",
     "equity": "220.05",
-    "ai_advice": "Market is active. Jini AI brain is monitoring XAUUSD trends smoothly."
+    "ai_advice": "Jini AI brain is monitoring XAUUSD trends smoothly via direct API."
 }
 
 def get_ai_trading_advice():
-    if not ai_model:
+    if not GEMINI_API_KEY:
         return "⚠️ Gemini API Key missing in Render Environment Variables!"
     try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         prompt = (
             f"You are Jini, an expert quantitative trading AI advisor for XAUUSD. "
             f"Current Stats -> State: {bot_status['state']}, PnL: {bot_status['current_pnl']}, "
@@ -46,8 +41,11 @@ def get_ai_trading_advice():
             f"Win Rate: {bot_status['win_rate']}, Table: {bot_status['current_table']}, Step: {bot_status['current_step']}. "
             f"Give a short, punchy, professional trading advice or market observation in 2 sentences (Mix of Hindi and English like a pro trader)."
         )
-        response = ai_model.generate_content(prompt)
-        return response.text
+        data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode())
+            return res_data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
         return f"AI Brain active, optimizing next trade setup..."
 
@@ -75,7 +73,6 @@ HTML_TEMPLATE = """
     <h1>🧞‍♂️ JINI AI QUANTITATIVE TRADING ENGINE 🧞‍♂️</h1>
     <div class="status-box">Status: {{ status.state }}</div>
 
-    <!-- 🤖 JINI AI LIVE BRAIN ADVICE BOX -->
     <div class="container" style="margin-top: 0; margin-bottom: 20px;">
         <div class="card-wide" style="border-color: #58a6ff;">
             <h3 style="color: #58a6ff;">🤖 Jini AI Live Brain & Consultant</h3>
@@ -84,14 +81,12 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="container">
-        <!-- 0. Live MT5 Wallet -->
         <div class="card" style="border-color: #e3b341;">
             <h3 style="color: #e3b341;">💰 Live MT5 Wallet</h3>
             <p class="wallet-text">Balance: <span class="val" style="color: #ffffff;">${{ status.balance }}</span></p>
             <p class="wallet-text">Equity: <span class="val" style="color: #3fb950;">${{ status.equity }}</span></p>
         </div>
 
-        <!-- 1. Live PnL & Performance -->
         <div class="card">
             <h3>📊 Live Global Performance</h3>
             <p>Daily Net Profit: <span class="val" style="color: #3fb950;">{{ status.current_pnl }}</span></p>
@@ -102,7 +97,6 @@ HTML_TEMPLATE = """
             <p>Current Step: <span class="val" style="color: #a371f7;">{{ status.current_step }}</span></p>
         </div>
 
-        <!-- 2. AI Machine Learning Intelligence -->
         <div class="card">
             <h3>🧠 AI Pattern Analyzer</h3>
             <p>Golden Hours: <span class="val" style="color: #d29922;">{{ status.golden_hours }}</span></p>
@@ -111,7 +105,6 @@ HTML_TEMPLATE = """
             <p>Market Volatility: <span class="val" style="color: #3fb950;">{{ status.volatility_status }}</span></p>
         </div>
 
-        <!-- 3. Risk Management & Circuit Breakers -->
         <div class="card">
             <h3>🛡️ Risk & Circuit Breakers</h3>
             <p>Consecutive Losses: <span class="val">{{ status.consecutive_losses }} / 2</span></p>
@@ -144,7 +137,6 @@ def update_status():
             bot_status["equity"] = data.get("equity", bot_status["equity"])
             bot_status["state"] = data.get("state", bot_status["state"])
             
-            # 🧠 Trigger Gemini AI Brain
             bot_status["ai_advice"] = get_ai_trading_advice()
             
             return jsonify({"status": "success"}), 200
