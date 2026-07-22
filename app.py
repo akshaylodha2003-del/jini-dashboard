@@ -1,8 +1,14 @@
 from flask import Flask, render_template_string, request, jsonify
+import os
+from google import genai
 
 app = Flask(__name__)
 
-# 🤖 AI & Risk Management System State (Default Values)
+# 🤖 Initialize Gemini API Client using Environment Variable
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+ai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+# 🤖 AI & Risk Management System State
 bot_status = {
     "state": "WAITING FOR MT5 DATA...",
     "active_markets": ["XAUUSD"],
@@ -21,26 +27,46 @@ bot_status = {
     "winning_trades": "0",
     "losing_trades": "0",
     "balance": "0.00",
-    "equity": "0.00"
+    "equity": "0.00",
+    "ai_advice": "Initializing Jini AI Brain... Waiting for market data."
 }
+
+def get_ai_trading_advice():
+    if not ai_client:
+        return "⚠️ Gemini API Key not found in Environment Variables!"
+    try:
+        prompt = (
+            f"You are Jini, an expert quantitative trading AI advisor for XAUUSD. "
+            f"Current Stats -> State: {bot_status['state']}, PnL: {bot_status['current_pnl']}, "
+            f"Balance: ${bot_status['balance']}, Equity: ${bot_status['equity']}, "
+            f"Win Rate: {bot_status['win_rate']}, Table: {bot_status['current_table']}, Step: {bot_status['current_step']}. "
+            f"Give a short, punchy, professional trading advice or market observation in 2 sentences (Mix of Hindi and English like a pro trader)."
+        )
+        response = ai_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text
+    except Exception as e:
+        return f"AI Thinking Error: {str(e)}"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>JINI AI QUANT DASHBOARD 🧞‍♂️</title>
-    <meta http-equiv="refresh" content="3"> <!-- हर 3 सेकंड में ऑटो रिफ्रेश होगा -->
+    <meta http-equiv="refresh" content="5">
     <style>
         body { background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 20px; }
         h1 { color: #58a6ff; font-size: 26px; }
         .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 20px; }
         .card { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: left; }
+        .card-wide { background-color: #161b22; border: 1px solid #58a6ff; border-radius: 8px; padding: 20px; width: 640px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: left; margin: 0 auto; }
         .card h3 { margin-top: 0; color: #3fb950; border-bottom: 1px solid #30363d; padding-bottom: 8px; font-size: 18px; }
         .val { font-weight: bold; color: #f0f6fc; }
-        .btn-danger { background-color: #da3633; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
-        .btn-danger:hover { background-color: #f85149; }
         .status-box { background-color: #1f6feb; color: white; padding: 10px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; display: inline-block; font-size: 18px; }
         .wallet-text { font-size: 22px; color: #e3b341; margin: 5px 0; font-weight: bold; }
+        .ai-text { font-size: 16px; color: #58a6ff; line-height: 1.5; font-style: italic; }
     </style>
 </head>
 <body>
@@ -48,8 +74,16 @@ HTML_TEMPLATE = """
     <h1>🧞‍♂️ JINI AI QUANTITATIVE TRADING ENGINE 🧞‍♂️</h1>
     <div class="status-box">Status: {{ status.state }}</div>
 
+    <!-- 🤖 JINI AI LIVE BRAIN ADVICE BOX -->
+    <div class="container" style="margin-top: 0; margin-bottom: 20px;">
+        <div class="card-wide" style="border-color: #58a6ff;">
+            <h3 style="color: #58a6ff;">🤖 Jini AI Live Brain & Consultant</h3>
+            <p class="ai-text">"{{ status.ai_advice }}"</p>
+        </div>
+    </div>
+
     <div class="container">
-        <!-- 0. Live MT5 Wallet (NEW) -->
+        <!-- 0. Live MT5 Wallet -->
         <div class="card" style="border-color: #e3b341;">
             <h3 style="color: #e3b341;">💰 Live MT5 Wallet</h3>
             <p class="wallet-text">Balance: <span class="val" style="color: #ffffff;">${{ status.balance }}</span></p>
@@ -93,7 +127,6 @@ HTML_TEMPLATE = """
 def home():
     return render_template_string(HTML_TEMPLATE, status=bot_status)
 
-# 🌐 WEBHOOK: MT5 SE LIVE DATA LENE KE LIYE
 @app.route('/update', methods=['POST'])
 def update_status():
     try:
@@ -109,6 +142,10 @@ def update_status():
             bot_status["balance"] = data.get("balance", bot_status["balance"])
             bot_status["equity"] = data.get("equity", bot_status["equity"])
             bot_status["state"] = data.get("state", bot_status["state"])
+            
+            # 🧠 Trigger Gemini AI Brain to analyze current state
+            bot_status["ai_advice"] = get_ai_trading_advice()
+            
             return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
@@ -117,6 +154,7 @@ def update_status():
 def kill_switch():
     bot_status["state"] = "🛑 EMERGENCY STOPPED BY USER"
     bot_status["circuit_breaker"] = "TRIPPED (Locked)"
+    bot_status["ai_advice"] = "Emergency stop triggered! All trading halted."
     return render_template_string(HTML_TEMPLATE, status=bot_status)
 
 if __name__ == '__main__':
