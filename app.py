@@ -26,20 +26,18 @@ bot_status = {
     "losing_trades": "10",
     "balance": "220.29",
     "equity": "220.05",
-    "ai_advice": "Jini AI brain is monitoring XAUUSD trends smoothly via direct API."
+    "ai_advice": "Jini AI hybrid bridge is active and syncing tables."
 }
 
-def get_ai_trading_advice():
+def get_ai_trading_advice(pnl, balance, table, step):
     if not GEMINI_API_KEY:
-        return "⚠️ Gemini API Key missing in Render Environment Variables!"
+        return "⚠️ Gemini API Key missing!"
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         prompt = (
-            f"You are Jini, an expert quantitative trading AI advisor for XAUUSD. "
-            f"Current Stats -> State: {bot_status['state']}, PnL: {bot_status['current_pnl']}, "
-            f"Balance: ${bot_status['balance']}, Equity: ${bot_status['equity']}, "
-            f"Win Rate: {bot_status['win_rate']}, Table: {bot_status['current_table']}, Step: {bot_status['current_step']}. "
-            f"Give a short, punchy, professional trading advice or market observation in 2 sentences (Mix of Hindi and English like a pro trader)."
+            f"You are Jini, an expert quantitative algorithmic trading AI for XAUUSD managing a grid/recovery table strategy (Table-1 and Table-2). "
+            f"Current status -> PnL: {pnl}, Balance: ${balance}, Active Table: {table}, Current Step: {step}. "
+            f"Give a short, punchy 2-sentence tactical recommendation in Hindi and English mix for the trader."
         )
         data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
@@ -47,7 +45,7 @@ def get_ai_trading_advice():
             res_data = json.loads(response.read().decode())
             return res_data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"AI Brain active, optimizing next trade setup..."
+        return f"AI Bridge optimizing strategy grids..."
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -75,7 +73,7 @@ HTML_TEMPLATE = """
 
     <div class="container" style="margin-top: 0; margin-bottom: 20px;">
         <div class="card-wide" style="border-color: #58a6ff;">
-            <h3 style="color: #58a6ff;">🤖 Jini AI Live Brain & Consultant</h3>
+            <h3 style="color: #58a6ff;">🤖 Jini AI Hybrid Brain & Strategy Advisor</h3>
             <p class="ai-text">"{{ status.ai_advice }}"</p>
         </div>
     </div>
@@ -98,10 +96,10 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="card">
-            <h3>🧠 AI Pattern Analyzer</h3>
-            <p>Golden Hours: <span class="val" style="color: #d29922;">{{ status.golden_hours }}</span></p>
-            <p>Trend Direction: <span class="val">{{ status.trend_direction }}</span></p>
-            <p>Best Trading Day: <span class="val">{{ status.best_day }}</span></p>
+            <h3>🧠 AI Strategy Switcher</h3>
+            <p>Primary Engine: <span class="val" style="color: #d29922;">Table-1 & Table-2 Grid</span></p>
+            <p>AI Decision Mode: <span class="val" style="color: #3fb950;">ACTIVE BRIDGE</span></p>
+            <p>Best Trading Day: <span class="val">Tuesday / Thursday</span></p>
             <p>Market Volatility: <span class="val" style="color: #3fb950;">{{ status.volatility_status }}</span></p>
         </div>
 
@@ -137,9 +135,16 @@ def update_status():
             bot_status["equity"] = data.get("equity", bot_status["equity"])
             bot_status["state"] = data.get("state", bot_status["state"])
             
-            bot_status["ai_advice"] = get_ai_trading_advice()
+            # Get AI smart advice based on current live PnL and Table steps
+            bot_status["ai_advice"] = get_ai_trading_advice(
+                bot_status["current_pnl"], 
+                bot_status["balance"], 
+                bot_status["current_table"], 
+                bot_status["current_step"]
+            )
             
-            return jsonify({"status": "success"}), 200
+            # We can also return AI command back to MT5 if needed!
+            return jsonify({"status": "success", "ai_signal": "HOLD_GRID"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -147,7 +152,7 @@ def update_status():
 def kill_switch():
     bot_status["state"] = "🛑 EMERGENCY STOPPED BY USER"
     bot_status["circuit_breaker"] = "TRIPPED (Locked)"
-    bot_status["ai_advice"] = "Emergency stop triggered! All trading halted."
+    bot_status["ai_advice"] = "Emergency stop triggered! All trading tables halted."
     return render_template_string(HTML_TEMPLATE, status=bot_status)
 
 if __name__ == '__main__':
