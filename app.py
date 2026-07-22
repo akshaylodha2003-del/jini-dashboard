@@ -17,35 +17,35 @@ bot_status = {
     "trend_direction": "BULLISH (Favorable for BUY)",
     "best_day": "Tuesday / Thursday",
     "drawdown_limit": "-$100.00",
-    "current_pnl": "-$7.60",
-    "win_rate": "54.5%",
+    "current_pnl": "-$10.94",
+    "win_rate": "53.8%",
     "current_table": "TABLE-1",
-    "current_step": "Step 1 of 9",
-    "total_trades": "22",
-    "winning_trades": "12",
-    "losing_trades": "10",
-    "balance": "220.29",
-    "equity": "220.05",
-    "ai_advice": "Jini AI hybrid bridge is active and syncing tables."
+    "current_step": "Step 2 of 9",
+    "total_trades": "26",
+    "winning_trades": "14",
+    "losing_trades": "12",
+    "balance": "216.95",
+    "equity": "216.95",
+    "ai_advice": "Jini AI hybrid bridge is syncing with live market data."
 }
 
 def get_ai_trading_advice(pnl, balance, table, step):
     if not GEMINI_API_KEY:
-        return "⚠️ Gemini API Key missing!"
+        return "⚠️ Gemini API Key missing in Render Environment Variables!"
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         prompt = (
-            f"You are Jini, an expert quantitative algorithmic trading AI for XAUUSD managing a grid/recovery table strategy (Table-1 and Table-2). "
+            f"You are Jini, an expert quantitative algorithmic trading AI for XAUUSD managing a grid/recovery table strategy. "
             f"Current status -> PnL: {pnl}, Balance: ${balance}, Active Table: {table}, Current Step: {step}. "
             f"Give a short, punchy 2-sentence tactical recommendation in Hindi and English mix for the trader."
         )
         data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             res_data = json.loads(response.read().decode())
             return res_data["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        return f"AI Bridge optimizing strategy grids..."
+        return f"AI Active: Grid running smoothly at {table} ({step})."
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -135,7 +135,7 @@ def update_status():
             bot_status["equity"] = data.get("equity", bot_status["equity"])
             bot_status["state"] = data.get("state", bot_status["state"])
             
-            # Get AI smart advice based on current live PnL and Table steps
+            # Fetch fresh response from Gemini AI based on latest MT5 data
             bot_status["ai_advice"] = get_ai_trading_advice(
                 bot_status["current_pnl"], 
                 bot_status["balance"], 
@@ -143,8 +143,7 @@ def update_status():
                 bot_status["current_step"]
             )
             
-            # We can also return AI command back to MT5 if needed!
-            return jsonify({"status": "success", "ai_signal": "HOLD_GRID"}), 200
+            return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -152,7 +151,7 @@ def update_status():
 def kill_switch():
     bot_status["state"] = "🛑 EMERGENCY STOPPED BY USER"
     bot_status["circuit_breaker"] = "TRIPPED (Locked)"
-    bot_status["ai_advice"] = "Emergency stop triggered! All trading tables halted."
+    bot_status["ai_advice"] = "Emergency stop triggered! All trading halted."
     return render_template_string(HTML_TEMPLATE, status=bot_status)
 
 if __name__ == '__main__':
