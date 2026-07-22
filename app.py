@@ -99,6 +99,21 @@ HTML_TEMPLATE = """
 def home():
     return render_template_string(HTML_TEMPLATE, status=bot_status)
 
+# 🌐 यह रहा नया Webhook Receiver जो बोट से डेटा लेगा
+@app.route('/update', methods=['POST'])
+def update_stats():
+    data = request.json
+    if data:
+        bot_status["total_net_profit"] = data.get("pnl", bot_status["total_net_profit"])
+        bot_status["win_rate"] = data.get("win_rate", bot_status["win_rate"])
+        bot_status["current_table"] = data.get("table", bot_status["current_table"])
+        bot_status["current_step"] = data.get("step", bot_status["current_step"])
+        bot_status["total_trades"] = data.get("total_trades", bot_status["total_trades"])
+        bot_status["winning_trades"] = data.get("winning_trades", bot_status["winning_trades"])
+        bot_status["losing_trades"] = data.get("losing_trades", bot_status["losing_trades"])
+        bot_status["state"] = data.get("state", bot_status["state"])
+    return {"status": "success"}
+
 @app.route('/kill', methods=['POST'])
 def kill_switch():
     bot_status["state"] = "🛑 EMERGENCY STOPPED BY USER"
